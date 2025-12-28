@@ -65,7 +65,7 @@ export async function POST(req: Request) {
                     };
 
                     const amigoRes = await axios.post(
-                        'https://amigo.ng/api/data/',
+                        `${process.env.AMIGO_BASE_URL}/data/`,
                         amigoPayload,
                         {
                             headers: {

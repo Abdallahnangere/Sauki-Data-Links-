@@ -148,14 +148,21 @@ export default function AdminPage() {
       }, 500);
   };
 
+  // Safe accessor for receipt description
   const getTransactionDescription = (tx: Transaction) => {
-      if (tx.type === 'data' && tx.dataPlan) {
-          return `${tx.dataPlan.network} ${tx.dataPlan.data} (${tx.dataPlan.validity})`;
+      if (tx.type === 'data') {
+          if (tx.dataPlan) {
+              return `${tx.dataPlan.network} ${tx.dataPlan.data} (${tx.dataPlan.validity})`;
+          }
+          return 'Data Bundle';
       }
-      if (tx.type === 'ecommerce' && tx.product) {
-          return tx.product.name;
+      if (tx.type === 'ecommerce') {
+          if (tx.product) {
+              return tx.product.name;
+          }
+          return 'Mobile Device';
       }
-      return tx.type === 'data' ? 'Data Bundle' : 'Product Order';
+      return 'Item Order';
   };
 
   if (!isAuthenticated) return (
@@ -266,7 +273,7 @@ export default function AdminPage() {
                                         <div className="text-xs text-slate-500">{tx.phone}</div>
                                         <div className="text-xs text-slate-400">{tx.deliveryState}</div>
                                     </td>
-                                    <td className="p-4 text-slate-600">Product: {tx.product?.name || tx.productId?.slice(0,8)}</td>
+                                    <td className="p-4 text-slate-600">{tx.product?.name || tx.productId?.slice(0,8)}</td>
                                     <td className="p-4"><span className={cn("px-2 py-1 rounded-full text-xs font-bold uppercase", tx.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700')}>{tx.status}</span></td>
                                     <td className="p-4 font-bold">{formatCurrency(tx.amount)}</td>
                                     <td className="p-4">

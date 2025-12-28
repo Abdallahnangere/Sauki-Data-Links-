@@ -18,59 +18,69 @@ export async function POST(req: Request) {
     const transaction = await prisma.transaction.findUnique({ where: { tx_ref } });
     if (!transaction) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
 
-    // 2. If already delivered/paid, return immediately to save API calls
+    // 2. If already delivered, return immediately
     if (transaction.status === 'delivered') return NextResponse.json({ status: 'delivered' });
     
-    // 3. STRICT: Verify with Flutterwave
-    const flwVerify = await axios.get(`https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${tx_ref}`, {
-        headers: { Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}` }
-    });
+    let currentStatus = transaction.status;
 
-    const flwData = flwVerify.data.data;
-
-    // ONLY proceed if Flutterwave says "successful" AND amount matches
-    if (flwVerify.data.status === 'success' && flwData.status === 'successful' && flwData.amount >= transaction.amount) {
-        
-        // Update DB to PAID if it was pending
-        if (transaction.status === 'pending') {
-            await prisma.transaction.update({
-                where: { id: transaction.id },
-                data: { status: 'paid' }
+    // 3. If Pending, Verify with Flutterwave
+    // We only verify with FLW if we haven't confirmed payment yet.
+    if (currentStatus === 'pending') {
+        try {
+            const flwVerify = await axios.get(`https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${tx_ref}`, {
+                headers: { Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}` }
             });
-            transaction.status = 'paid';
-        }
 
-        // 4. Trigger Amigo (Instant Data Delivery)
-        if (transaction.type === 'data' && transaction.status === 'paid' && !transaction.deliveryData) {
-            
-            // Fetch the Plan details to get the Amigo Plan ID (e.g., 1001)
+            const flwData = flwVerify.data.data;
+
+            if (flwVerify.data.status === 'success' && flwData.status === 'successful' && flwData.amount >= transaction.amount) {
+                // Update to PAID
+                await prisma.transaction.update({
+                    where: { id: transaction.id },
+                    data: { status: 'paid' }
+                });
+                currentStatus = 'paid';
+            }
+        } catch (error) {
+            console.error('FLW Verify Error:', error);
+            // If FLW fails (network/rate limit), we return current status (pending) and stop.
+            // We do NOT fail the transaction, just allow retry later.
+            return NextResponse.json({ status: 'pending' }); 
+        }
+    }
+
+    // 4. If Status is PAID (from DB or just verified), Attempt Amigo Delivery
+    if (currentStatus === 'paid' && transaction.type === 'data') {
+        // Double check if already delivered to prevent double spend (though status check above handles most cases)
+        // We use the deliveryData field as a secondary lock
+        if (!transaction.deliveryData) {
             const plan = await prisma.dataPlan.findUnique({ where: { id: transaction.planId! } });
             
             if (plan) {
                 const networkId = AMIGO_NETWORKS[plan.network];
 
                 try {
-                    // Call Amigo API exactly as documented
+                    console.log(`Attempting Amigo Delivery for ${tx_ref}`);
+                    
                     const amigoPayload = {
                         network: networkId,
                         mobile_number: transaction.phone,
-                        plan: plan.planId, // This must be the integer ID (e.g. 1001)
+                        plan: plan.planId,
                         Ported_number: true
                     };
 
                     const amigoRes = await axios.post(
-                        'https://amigo.ng/api/data/',
+                        `${process.env.AMIGO_BASE_URL}/data/`,
                         amigoPayload,
                         {
                             headers: {
-                                'X-API-Key': process.env.AMIGO_API_KEY, // Use X-API-Key header
+                                'X-API-Key': process.env.AMIGO_API_KEY,
                                 'Content-Type': 'application/json'
                             }
                         }
                     );
 
                     // Check Amigo response
-                    // Amigo returns { success: true, status: 'delivered', ... }
                     if (amigoRes.data.success === true || amigoRes.data.status === 'delivered') {
                         await prisma.transaction.update({
                             where: { id: transaction.id },
@@ -79,10 +89,9 @@ export async function POST(req: Request) {
                                 deliveryData: amigoRes.data
                             }
                         });
-                        transaction.status = 'delivered';
+                        currentStatus = 'delivered';
                     } else {
                         console.error('Amigo Delivery Failed:', amigoRes.data);
-                        // We keep status as 'paid' so admin can see money is in but data failed
                     }
                 } catch (amigoError: any) {
                     console.error('Amigo API Network Error:', amigoError?.response?.data || amigoError.message);
@@ -91,11 +100,10 @@ export async function POST(req: Request) {
         }
     }
 
-    // Return the status (It will be 'pending' if FLW failed, 'paid' if money in but Amigo failed, 'delivered' if all good)
-    return NextResponse.json({ status: transaction.status });
+    return NextResponse.json({ status: currentStatus });
 
   } catch (error) {
-    console.error('Verification Error:', error);
+    console.error('Verification System Error:', error);
     return NextResponse.json({ error: 'Verification failed' }, { status: 500 });
   }
 }

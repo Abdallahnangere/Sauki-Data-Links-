@@ -37,7 +37,6 @@ export const Track: React.FC = () => {
   const handleRetry = async (tx_ref: string, id: string) => {
       setRetryingId(id);
       try {
-          // Verify Transaction calls Flutterwave AND triggers Amigo if paid
           const res = await api.verifyTransaction(tx_ref);
           await handleTrack();
           
@@ -85,14 +84,21 @@ export const Track: React.FC = () => {
     }
   };
 
+  // Helper to get the specific item name for the receipt "Item Details"
   const getTransactionDescription = (tx: Transaction) => {
-      if (tx.type === 'data' && tx.dataPlan) {
-          return `${tx.dataPlan.network} ${tx.dataPlan.data} (${tx.dataPlan.validity})`;
+      if (tx.type === 'data') {
+          if (tx.dataPlan) {
+              return `${tx.dataPlan.network} ${tx.dataPlan.data} (${tx.dataPlan.validity})`;
+          }
+          return 'Data Bundle'; // Fallback only if relation missing
       }
-      if (tx.type === 'ecommerce' && tx.product) {
-          return tx.product.name;
+      if (tx.type === 'ecommerce') {
+          if (tx.product) {
+              return tx.product.name;
+          }
+          return 'Mobile Device'; // Fallback
       }
-      return tx.type === 'data' ? 'Data Bundle' : 'Product Order';
+      return 'Unknown Item';
   };
 
   return (
