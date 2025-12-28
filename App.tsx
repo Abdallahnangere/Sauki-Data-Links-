@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Home } from './pages/Home';
-import { Store } from './pages/Store';
-import { Data } from './pages/Data';
-import { Track } from './pages/Track';
+import { Home } from './components/screens/Home';
+import { Store } from './components/screens/Store';
+import { Data } from './components/screens/Data';
+import { Track } from './components/screens/Track';
 import { BottomTabs } from './components/BottomTabs';
 import { motion, AnimatePresence } from 'framer-motion';
 
