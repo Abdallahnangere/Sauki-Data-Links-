@@ -12,7 +12,7 @@ import { toPng } from 'html-to-image';
 export const Store: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [step, setStep] = useState<'details' | 'form' | 'payment' | 'pending' | 'success'>('details');
+  const [step, setStep] = useState<'details' | 'form' | 'payment' | 'verifying' | 'pending' | 'success'>('details');
   const [formData, setFormData] = useState({ name: '', phone: '', state: '' });
   const [paymentDetails, setPaymentDetails] = useState<PaymentInitResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -44,22 +44,38 @@ export const Store: React.FC = () => {
     }
   };
 
+  // Smart Polling Logic
   const handleVerifyPayment = async () => {
     if (!paymentDetails) return;
     setIsLoading(true);
-    try {
-        const res = await api.verifyTransaction(paymentDetails.tx_ref);
-        
-        if (res.status === 'paid' || res.status === 'delivered') {
-            setStep('success');
-        } else {
+    setStep('verifying');
+
+    let attempts = 0;
+    const maxAttempts = 5; // Check 5 times over ~15 seconds
+
+    const check = async () => {
+        try {
+            const res = await api.verifyTransaction(paymentDetails.tx_ref);
+            
+            if (res.status === 'paid' || res.status === 'delivered') {
+                setStep('success');
+                setIsLoading(false);
+                return;
+            }
+
+            attempts++;
+            if (attempts < maxAttempts) {
+                setTimeout(check, 3000); // 3 second delay
+            } else {
+                setStep('pending');
+                setIsLoading(false);
+            }
+        } catch (e) {
             setStep('pending');
+            setIsLoading(false);
         }
-    } catch (e) {
-        setStep('pending');
-    } finally {
-        setIsLoading(false);
-    }
+    };
+    check();
   };
 
   const downloadReceipt = async () => {
@@ -67,7 +83,7 @@ export const Store: React.FC = () => {
     try {
         const dataUrl = await toPng(receiptRef.current, { cacheBust: true, pixelRatio: 3 });
         const link = document.createElement('a');
-        link.download = `SAUKI-STORE-RECEIPT.png`;
+        link.download = `SAUKI-STORE-RECEIPT-${paymentDetails?.tx_ref || 'order'}.png`;
         link.href = dataUrl;
         link.click();
     } catch (err) {
@@ -162,9 +178,19 @@ export const Store: React.FC = () => {
                      </div>
                  </div>
 
-                 <Button onClick={handleVerifyPayment} isLoading={isLoading} className="w-full bg-green-600 hover:bg-green-700 text-white h-14 text-lg font-bold shadow-lg shadow-green-200">
+                 <Button onClick={handleVerifyPayment} className="w-full bg-green-600 hover:bg-green-700 text-white h-14 text-lg font-bold shadow-lg shadow-green-200">
                      I Have Paid
                  </Button>
+             </div>
+         )}
+
+         {step === 'verifying' && (
+             <div className="text-center space-y-6 py-12">
+                 <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto" />
+                 <div>
+                     <h2 className="text-xl font-bold text-slate-900">Verifying Payment...</h2>
+                     <p className="text-slate-500 mt-2 text-sm">Please wait while we confirm your transfer.</p>
+                 </div>
              </div>
          )}
 
@@ -191,6 +217,7 @@ export const Store: React.FC = () => {
                  {/* Hidden Receipt for Generation */}
                  <div className="fixed -left-[9999px]">
                     <div ref={receiptRef} className="w-[400px] bg-white p-8 border border-slate-200 flex flex-col items-center text-center font-sans">
+                        <img src="/logo.png" className="h-16 w-auto mb-2 object-contain" />
                         <h1 className="text-2xl font-black text-slate-900 tracking-tight mb-1">SAUKI MART</h1>
                         <p className="text-xs text-slate-500 mb-6 uppercase tracking-widest">Store Receipt</p>
                         

@@ -10,7 +10,6 @@ export async function GET() {
     });
     return NextResponse.json(plans);
   } catch (error) {
-    console.error('Failed to fetch plans:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
@@ -20,10 +19,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { network, data, validity, price, planId } = body;
     
-    if (!network || !data || !price || !planId) {
-        return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
-
     const plan = await prisma.dataPlan.create({
       data: {
         network,
@@ -35,7 +30,37 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(plan);
   } catch (error) {
-    console.error('Failed to create plan:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Error' }, { status: 500 });
   }
+}
+
+export async function PUT(req: Request) {
+    try {
+        const body = await req.json();
+        const { id, ...data } = body;
+        const plan = await prisma.dataPlan.update({
+            where: { id },
+            data: {
+                ...data,
+                price: Number(data.price),
+                planId: Number(data.planId)
+            }
+        });
+        return NextResponse.json(plan);
+    } catch (e) {
+        return NextResponse.json({ error: 'Update failed' }, { status: 500 });
+    }
+}
+
+export async function DELETE(req: Request) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const id = searchParams.get('id');
+        if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
+
+        await prisma.dataPlan.delete({ where: { id } });
+        return NextResponse.json({ success: true });
+    } catch (e) {
+        return NextResponse.json({ error: 'Delete failed' }, { status: 500 });
+    }
 }

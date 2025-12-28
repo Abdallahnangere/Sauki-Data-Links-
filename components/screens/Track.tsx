@@ -1,16 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { api } from '../../lib/api';
 import { Transaction } from '../../types';
 import { cn, formatCurrency } from '../../lib/utils';
-import { Search } from 'lucide-react';
+import { Search, Download, RefreshCw, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { toPng } from 'html-to-image';
 
 export const Track: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
+  // Receipt Generation State
+  const receiptRef = useRef<HTMLDivElement>(null);
+  const [receiptTx, setReceiptTx] = useState<Transaction | null>(null);
 
   const handleTrack = async () => {
     if (phone.length < 10) return;
@@ -24,6 +30,47 @@ export const Track: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRetry = async (tx_ref: string, id: string) => {
+      setRetryingId(id);
+      try {
+          // Verify Transaction calls Flutterwave AND triggers Amigo if paid
+          const res = await api.verifyTransaction(tx_ref);
+          // Refresh list to show new status
+          await handleTrack();
+          
+          if (res.status === 'delivered') {
+              alert("Success! Data delivered.");
+          } else if (res.status === 'paid') {
+              alert("Payment confirmed, but delivery pending. Try again in a moment.");
+          } else {
+              alert("Status: " + res.status);
+          }
+      } catch (e) {
+          alert("Retry failed. Check network.");
+      } finally {
+          setRetryingId(null);
+      }
+  };
+
+  const handleDownloadReceipt = async (tx: Transaction) => {
+      setReceiptTx(tx);
+      // Give React time to render the hidden component
+      setTimeout(async () => {
+          if (receiptRef.current) {
+              try {
+                  const dataUrl = await toPng(receiptRef.current, { cacheBust: true, pixelRatio: 3 });
+                  const link = document.createElement('a');
+                  link.download = `SAUKI-RECEIPT-${tx.tx_ref}.png`;
+                  link.href = dataUrl;
+                  link.click();
+              } catch (err) {
+                  console.error('Receipt error', err);
+              }
+              setReceiptTx(null);
+          }
+      }, 500);
   };
 
   const getStatusColor = (status: Transaction['status']) => {
@@ -59,25 +106,81 @@ export const Track: React.FC = () => {
         </div>
       </div>
 
+      {/* Hidden Receipt Component */}
+      {receiptTx && (
+        <div className="fixed -left-[9999px]">
+            <div ref={receiptRef} className="w-[400px] bg-white p-8 border border-slate-200 flex flex-col items-center text-center font-sans">
+                <img src="/logo.png" className="h-16 w-auto mb-2 object-contain" />
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight mb-1">SAUKI MART</h1>
+                <p className="text-xs text-slate-500 mb-6 uppercase tracking-widest">Transaction Receipt</p>
+                <div className="w-full h-px bg-slate-100 mb-6"></div>
+                <div className="space-y-4 w-full mb-8 text-left">
+                    <div className="flex justify-between"><span className="text-slate-500">Ref</span><span className="font-mono font-bold text-slate-900">{receiptTx.tx_ref}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Date</span><span className="font-medium text-slate-900">{new Date(receiptTx.createdAt).toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Service</span><span className="font-bold text-slate-900 capitalize">{receiptTx.type}</span></div>
+                    <div className="flex justify-between text-lg font-bold pt-4 border-t border-slate-100 mt-4"><span className="text-slate-900">Amount</span><span className="text-green-600">{formatCurrency(receiptTx.amount)}</span></div>
+                    <div className="text-center text-xs text-slate-400 mt-4 uppercase font-bold">{receiptTx.status === 'delivered' ? 'SUCCESSFUL' : receiptTx.status}</div>
+                </div>
+                <p className="text-[10px] text-slate-400">Authorized by Sauki Data Links</p>
+            </div>
+        </div>
+      )}
+
       {hasSearched && (
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider">Recent Transactions</h3>
             {transactions.length > 0 ? (
                 <div className="space-y-3">
                     {transactions.map((tx) => (
-                        <div key={tx.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
-                            <div>
-                                <div className="text-sm font-bold text-slate-900 capitalize flex items-center gap-2">
-                                    {tx.type === 'data' ? 'Data Bundle' : 'Product Order'}
-                                    <span className={cn("text-[10px] uppercase font-bold px-2 py-0.5 rounded-full", getStatusColor(tx.status))}>
-                                        {tx.status}
-                                    </span>
+                        <div key={tx.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <div className="text-sm font-bold text-slate-900 capitalize flex items-center gap-2">
+                                        {tx.type === 'data' ? 'Data Bundle' : 'Product Order'}
+                                    </div>
+                                    <div className="text-xs text-slate-400 mt-1">Ref: {tx.tx_ref.slice(0, 18)}...</div>
+                                    <div className="text-xs text-slate-500 mt-0.5">{new Date(tx.createdAt).toLocaleString()}</div>
                                 </div>
-                                <div className="text-xs text-slate-400 mt-1">Ref: {tx.tx_ref.slice(0, 15)}...</div>
-                                <div className="text-xs text-slate-500 mt-0.5">{new Date(tx.createdAt).toLocaleString()}</div>
+                                <span className={cn("text-[10px] uppercase font-bold px-3 py-1 rounded-full", getStatusColor(tx.status))}>
+                                    {tx.status}
+                                </span>
                             </div>
-                            <div className="text-right">
-                                <div className="text-sm font-bold text-slate-900">{formatCurrency(tx.amount)}</div>
+
+                            <div className="flex justify-between items-center pt-3 border-t border-slate-50">
+                                <div className="text-lg font-bold text-slate-900">{formatCurrency(tx.amount)}</div>
+                                
+                                <div className="flex gap-2">
+                                    {/* Retry Button Logic */}
+                                    {(tx.status === 'pending' || tx.status === 'failed' || (tx.type === 'data' && tx.status === 'paid')) && (
+                                        <Button 
+                                            variant="outline" 
+                                            onClick={() => handleRetry(tx.tx_ref, tx.id)}
+                                            disabled={retryingId === tx.id}
+                                            className="h-9 px-3 text-xs"
+                                        >
+                                            {retryingId === tx.id ? <Loader2 className="animate-spin w-3 h-3" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                                            {tx.status === 'paid' ? 'Retry Delivery' : 'Check Status'}
+                                        </Button>
+                                    )}
+
+                                    {/* Data Failed Specific Message */}
+                                    {tx.type === 'data' && tx.status === 'paid' && (
+                                        <div className="hidden sm:flex items-center text-xs text-red-500 font-medium bg-red-50 px-2 py-1 rounded-lg">
+                                            <AlertTriangle className="w-3 h-3 mr-1" /> Network Error
+                                        </div>
+                                    )}
+
+                                    {/* Success Actions */}
+                                    {(tx.status === 'delivered' || (tx.type === 'ecommerce' && tx.status === 'paid')) && (
+                                        <Button 
+                                            variant="secondary" 
+                                            onClick={() => handleDownloadReceipt(tx)}
+                                            className="h-9 px-3 text-xs bg-green-50 text-green-700 hover:bg-green-100"
+                                        >
+                                            <Download className="w-3 h-3 mr-1" /> Receipt
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}

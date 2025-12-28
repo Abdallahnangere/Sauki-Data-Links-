@@ -11,7 +11,6 @@ export async function GET() {
     });
     return NextResponse.json(products);
   } catch (error) {
-    console.error('Failed to fetch products:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
@@ -21,9 +20,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { name, description, price, image } = body;
     
-    if (!name || !price) {
-        return NextResponse.json({ error: 'Name and Price are required' }, { status: 400 });
-    }
+    if (!name || !price) return NextResponse.json({ error: 'Required' }, { status: 400 });
 
     const product = await prisma.product.create({
       data: {
@@ -36,7 +33,36 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(product);
   } catch (error) {
-    console.error('Failed to create product:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Error' }, { status: 500 });
   }
+}
+
+export async function PUT(req: Request) {
+    try {
+        const body = await req.json();
+        const { id, ...data } = body;
+        const product = await prisma.product.update({
+            where: { id },
+            data: {
+                ...data,
+                price: Number(data.price)
+            }
+        });
+        return NextResponse.json(product);
+    } catch (e) {
+        return NextResponse.json({ error: 'Update failed' }, { status: 500 });
+    }
+}
+
+export async function DELETE(req: Request) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const id = searchParams.get('id');
+        if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
+
+        await prisma.product.delete({ where: { id } });
+        return NextResponse.json({ success: true });
+    } catch (e) {
+        return NextResponse.json({ error: 'Delete failed' }, { status: 500 });
+    }
 }

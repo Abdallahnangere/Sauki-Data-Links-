@@ -6,7 +6,7 @@ import { formatCurrency, NETWORK_BG_COLORS, cn } from '../../lib/utils';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { CheckCircle2, Copy, Download, AlertCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Copy, Download, RefreshCw, Loader2 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
 export const Data: React.FC = () => {
@@ -45,29 +45,47 @@ export const Data: React.FC = () => {
         setPaymentDetails(res);
         setStep('payment');
     } catch(e) {
-        console.error(e);
         alert("Could not initiate payment. Try again.");
     } finally {
         setIsLoading(false);
     }
   };
 
+  // Smart Polling Logic
   const handleVerify = async () => {
       if(!paymentDetails) return;
       setIsLoading(true);
-      try {
-          const res = await api.verifyTransaction(paymentDetails.tx_ref);
-          
-          if (res.status === 'delivered') {
-              setStep('success');
-          } else {
-              setStep('pending');
+      setStep('verifying');
+      
+      let attempts = 0;
+      const maxAttempts = 4; // Try 4 times
+      
+      const check = async () => {
+          try {
+              const res = await api.verifyTransaction(paymentDetails.tx_ref);
+              
+              if (res.status === 'delivered') {
+                  setStep('success');
+                  setIsLoading(false);
+                  return;
+              }
+              
+              attempts++;
+              if (attempts < maxAttempts) {
+                  // Retry after 3 seconds
+                  setTimeout(check, 3000);
+              } else {
+                  // Final check failed
+                  setStep('pending');
+                  setIsLoading(false);
+              }
+          } catch (e) {
+               setStep('pending');
+               setIsLoading(false);
           }
-      } catch(e) {
-          setStep('pending');
-      } finally {
-          setIsLoading(false);
-      }
+      };
+      
+      check();
   }
 
   const downloadReceipt = async () => {
@@ -75,7 +93,7 @@ export const Data: React.FC = () => {
     try {
         const dataUrl = await toPng(receiptRef.current, { cacheBust: true, pixelRatio: 3 });
         const link = document.createElement('a');
-        link.download = `SAUKI-RECEIPT-${paymentDetails?.tx_ref || 'data'}.png`;
+        link.download = `SAUKI-RECEIPT-${paymentDetails?.tx_ref}.png`;
         link.href = dataUrl;
         link.click();
     } catch (err) {
@@ -105,18 +123,24 @@ export const Data: React.FC = () => {
                        key={net}
                        whileTap={{ scale: 0.98 }}
                        onClick={() => handleNetworkSelect(net as NetworkType)}
-                       className={cn("w-full h-24 rounded-2xl flex items-center px-8 font-bold text-xl shadow-md transition-all border border-transparent hover:border-slate-200", NETWORK_BG_COLORS[net])}
+                       className={cn("w-full h-24 rounded-2xl flex items-center px-6 font-bold text-xl shadow-md transition-all border border-transparent hover:border-slate-200 relative overflow-hidden", NETWORK_BG_COLORS[net])}
                    >
-                       {net}
+                       <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mr-4 shadow-sm z-10">
+                           <img src={`/${net.toLowerCase()}.png`} alt={net} className="w-8 h-8 object-contain" />
+                       </div>
+                       <span className="z-10">{net}</span>
                    </motion.button>
                ))}
            </div>
        ) : (
            <div>
                <button onClick={() => setSelectedNetwork(null)} className="text-sm text-slate-500 mb-4 hover:text-slate-900 flex items-center">
-                 Back to Networks
+                 ← Back to Networks
                </button>
-               <h2 className="text-xl font-bold text-slate-900 mb-4">{selectedNetwork} Bundles</h2>
+               <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+                   <img src={`/${selectedNetwork.toLowerCase()}.png`} className="w-6 h-6 object-contain" />
+                   {selectedNetwork} Bundles
+               </h2>
                <div className="grid gap-3">
                    {filteredPlans.map(plan => (
                        <motion.div
@@ -199,9 +223,19 @@ export const Data: React.FC = () => {
                      </div>
                  </div>
 
-                 <Button onClick={handleVerify} isLoading={isLoading} className="w-full bg-green-600 hover:bg-green-700 text-white h-14 text-lg font-bold shadow-lg shadow-green-200">
+                 <Button onClick={handleVerify} className="w-full bg-green-600 hover:bg-green-700 text-white h-14 text-lg font-bold shadow-lg shadow-green-200">
                      I Have Paid
                  </Button>
+               </div>
+           )}
+
+           {step === 'verifying' && (
+               <div className="text-center space-y-6 py-12">
+                   <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto" />
+                   <div>
+                       <h2 className="text-xl font-bold text-slate-900">Verifying Payment...</h2>
+                       <p className="text-slate-500 mt-2 text-sm">Please wait while we confirm your transfer.</p>
+                   </div>
                </div>
            )}
 
@@ -213,9 +247,7 @@ export const Data: React.FC = () => {
                    <div>
                        <h2 className="text-xl font-bold text-slate-900">Payment Not Confirmed Yet</h2>
                        <p className="text-slate-500 mt-2 text-sm px-6">
-                           We haven't received the funds yet. Transfers can take a few minutes. 
-                           <br/><br/>
-                           Please check the <strong>Track</strong> tab later to see your status.
+                           We are still checking. If you have sent the money, please wait a few minutes and check the <strong>Track</strong> tab.
                        </p>
                    </div>
                    <Button variant="outline" onClick={handleClose}>Close & Check Later</Button>
@@ -225,9 +257,10 @@ export const Data: React.FC = () => {
            {step === 'success' && selectedPlan && (
                 <div className="text-center space-y-6 py-4">
                  
-                 {/* Hidden Receipt for Generation */}
+                 {/* Hidden Receipt */}
                  <div className="fixed -left-[9999px]">
                     <div ref={receiptRef} className="w-[400px] bg-white p-8 border border-slate-200 flex flex-col items-center text-center font-sans">
+                        <img src="/logo.png" className="h-16 w-auto mb-2 object-contain" />
                         <h1 className="text-2xl font-black text-slate-900 tracking-tight mb-1">SAUKI MART</h1>
                         <p className="text-xs text-slate-500 mb-6 uppercase tracking-widest">Transaction Receipt</p>
                         
@@ -235,7 +268,7 @@ export const Data: React.FC = () => {
 
                         <div className="space-y-4 w-full mb-8">
                             <div className="flex justify-between text-sm">
-                                <span className="text-slate-500">Transaction Ref</span>
+                                <span className="text-slate-500">Ref</span>
                                 <span className="font-mono font-medium text-slate-900">{paymentDetails?.tx_ref}</span>
                             </div>
                             <div className="flex justify-between text-sm">

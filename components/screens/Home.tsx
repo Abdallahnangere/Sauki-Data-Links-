@@ -13,13 +13,13 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
   return (
     <div className="p-6 space-y-8 pb-32">
       {/* Header */}
-      <header className="flex justify-between items-start">
+      <header className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900">SAUKI MART</h1>
           <p className="text-slate-500 text-sm mt-1">Premium Services</p>
         </div>
-        <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shadow-sm">
-            <span className="text-slate-900 font-bold text-xs">SM</span>
+        <div className="w-12 h-12 bg-white rounded-full shadow-sm border border-slate-100 flex items-center justify-center p-2">
+            <img src="/logo.png" alt="Sauki" className="w-full h-full object-contain" />
         </div>
       </header>
 
@@ -96,7 +96,6 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Contact Bottom Sheet */}
       <BottomSheet isOpen={isSupportOpen} onClose={() => setIsSupportOpen(false)} title="Contact Us">
           <div className="space-y-6">
               <div className="text-center space-y-1">
