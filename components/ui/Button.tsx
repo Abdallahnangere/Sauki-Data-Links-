@@ -9,6 +9,7 @@ interface ButtonProps extends HTMLMotionProps<"button"> {
   children?: React.ReactNode;
   className?: string;
   disabled?: boolean;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
 }
 
 export const Button: React.FC<ButtonProps> = ({ 

@@ -3,12 +3,26 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
-  // Clear existing data
+  console.log('Starting seed...')
+  
+  // 1. Wipe existing data
   await prisma.transaction.deleteMany()
   await prisma.product.deleteMany()
   await prisma.dataPlan.deleteMany()
+  console.log('Database wiped.')
 
-  // Seed Product
+  // 2. Seed Permanent MTN Plan
+  await prisma.dataPlan.create({
+    data: {
+      network: 'MTN',
+      data: '1GB',
+      validity: '30 Days',
+      price: 300, 
+      planId: 1001, // Amigo ID for MTN 1GB
+    },
+  })
+
+  // 3. Seed Example Product
   await prisma.product.create({
     data: {
       name: 'Test MTN Router',
@@ -19,18 +33,7 @@ async function main() {
     },
   })
 
-  // Seed Data Plan
-  await prisma.dataPlan.create({
-    data: {
-      network: 'MTN',
-      data: '1GB',
-      validity: '30 days',
-      price: 300, 
-      planId: 1001, // Valid Amigo ID for MTN 1GB
-    },
-  })
-
-  console.log('Seeding completed')
+  console.log('Seeding completed.')
 }
 
 main()
