@@ -7,7 +7,11 @@ export async function GET() {
   try {
     const transactions = await prisma.transaction.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 50
+      take: 50,
+      include: {
+        product: true,
+        dataPlan: true
+      }
     });
     return NextResponse.json(transactions);
   } catch (error) {

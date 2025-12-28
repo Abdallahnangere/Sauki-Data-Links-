@@ -13,7 +13,11 @@ export async function GET(req: Request) {
     const transactions = await prisma.transaction.findMany({
       where: { phone },
       orderBy: { createdAt: 'desc' },
-      take: 20
+      take: 20,
+      include: {
+        product: true,
+        dataPlan: true
+      }
     });
     return NextResponse.json({ transactions });
   } catch (error) {

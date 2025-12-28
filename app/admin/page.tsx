@@ -148,6 +148,16 @@ export default function AdminPage() {
       }, 500);
   };
 
+  const getTransactionDescription = (tx: Transaction) => {
+      if (tx.type === 'data' && tx.dataPlan) {
+          return `${tx.dataPlan.network} ${tx.dataPlan.data} (${tx.dataPlan.validity})`;
+      }
+      if (tx.type === 'ecommerce' && tx.product) {
+          return tx.product.name;
+      }
+      return tx.type === 'data' ? 'Data Bundle' : 'Product Order';
+  };
+
   if (!isAuthenticated) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100">
         <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center border border-slate-200">
@@ -198,7 +208,16 @@ export default function AdminPage() {
 
         {/* Main Content */}
         <main className="flex-1 md:ml-64 p-8 pt-20 md:pt-8 overflow-y-auto h-screen">
-            {receiptTx && <SharedReceipt ref={receiptRef} transaction={{ tx_ref: receiptTx.tx_ref, amount: receiptTx.amount, date: new Date(receiptTx.createdAt).toLocaleString(), type: receiptTx.type, description: receiptTx.type === 'data' ? 'Data Bundle' : 'Product Order', status: receiptTx.status, customerPhone: receiptTx.phone, customerName: receiptTx.customerName }} />}
+            {receiptTx && <SharedReceipt ref={receiptRef} transaction={{ 
+                tx_ref: receiptTx.tx_ref, 
+                amount: receiptTx.amount, 
+                date: new Date(receiptTx.createdAt).toLocaleString(), 
+                type: receiptTx.type === 'ecommerce' ? 'Devices' : 'Data Bundle', 
+                description: getTransactionDescription(receiptTx), 
+                status: receiptTx.status, 
+                customerPhone: receiptTx.phone, 
+                customerName: receiptTx.customerName 
+            }} />}
 
             <header className="flex justify-between items-center mb-8">
                 <div>
@@ -247,7 +266,7 @@ export default function AdminPage() {
                                         <div className="text-xs text-slate-500">{tx.phone}</div>
                                         <div className="text-xs text-slate-400">{tx.deliveryState}</div>
                                     </td>
-                                    <td className="p-4 text-slate-600">Product ID: {tx.productId?.slice(0,8)}...</td>
+                                    <td className="p-4 text-slate-600">Product: {tx.product?.name || tx.productId?.slice(0,8)}</td>
                                     <td className="p-4"><span className={cn("px-2 py-1 rounded-full text-xs font-bold uppercase", tx.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700')}>{tx.status}</span></td>
                                     <td className="p-4 font-bold">{formatCurrency(tx.amount)}</td>
                                     <td className="p-4">
@@ -272,6 +291,7 @@ export default function AdminPage() {
                                 <tr>
                                     <th className="p-4">Ref / Date</th>
                                     <th className="p-4">Type</th>
+                                    <th className="p-4">Details</th>
                                     <th className="p-4">Status</th>
                                     <th className="p-4">Amount</th>
                                     <th className="p-4">Action</th>
@@ -284,7 +304,8 @@ export default function AdminPage() {
                                             <div className="font-mono text-xs font-bold text-slate-700">{tx.tx_ref}</div>
                                             <div className="text-xs text-slate-400">{new Date(tx.createdAt).toLocaleString()}</div>
                                         </td>
-                                        <td className="p-4 capitalize">{tx.type}</td>
+                                        <td className="p-4 capitalize">{tx.type === 'ecommerce' ? 'Devices' : 'Data Bundle'}</td>
+                                        <td className="p-4 text-xs text-slate-600">{getTransactionDescription(tx)}</td>
                                         <td className="p-4"><span className={cn("px-2 py-1 rounded-full text-xs font-bold uppercase", tx.status === 'delivered' ? 'bg-green-100 text-green-700' : tx.status === 'paid' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500')}>{tx.status}</span></td>
                                         <td className="p-4 font-bold">{formatCurrency(tx.amount)}</td>
                                         <td className="p-4">

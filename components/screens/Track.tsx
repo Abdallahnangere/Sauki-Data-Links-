@@ -85,6 +85,16 @@ export const Track: React.FC = () => {
     }
   };
 
+  const getTransactionDescription = (tx: Transaction) => {
+      if (tx.type === 'data' && tx.dataPlan) {
+          return `${tx.dataPlan.network} ${tx.dataPlan.data} (${tx.dataPlan.validity})`;
+      }
+      if (tx.type === 'ecommerce' && tx.product) {
+          return tx.product.name;
+      }
+      return tx.type === 'data' ? 'Data Bundle' : 'Product Order';
+  };
+
   return (
     <div className="p-6 pb-32 min-h-screen">
       <div className="mb-8">
@@ -117,8 +127,8 @@ export const Track: React.FC = () => {
                 tx_ref: receiptTx.tx_ref,
                 amount: receiptTx.amount,
                 date: new Date(receiptTx.createdAt).toLocaleString(),
-                type: receiptTx.type,
-                description: receiptTx.type === 'data' ? 'Data Bundle' : 'Product Order',
+                type: receiptTx.type === 'ecommerce' ? 'Devices' : 'Data Bundle',
+                description: getTransactionDescription(receiptTx),
                 status: receiptTx.status,
                 customerPhone: receiptTx.phone,
                 customerName: receiptTx.customerName
@@ -136,9 +146,10 @@ export const Track: React.FC = () => {
                             <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <div className="text-sm font-bold text-slate-900 capitalize flex items-center gap-2">
-                                        {tx.type === 'data' ? 'Data Bundle' : 'Product Order'}
+                                        {tx.type === 'ecommerce' ? 'Devices' : 'Data Bundle'}
                                     </div>
-                                    <div className="text-xs text-slate-400 mt-1">Ref: {tx.tx_ref.slice(0, 18)}...</div>
+                                    <div className="text-xs text-slate-600 font-medium mt-1">{getTransactionDescription(tx)}</div>
+                                    <div className="text-xs text-slate-400 mt-0.5">Ref: {tx.tx_ref.slice(0, 18)}...</div>
                                     <div className="text-xs text-slate-500 mt-0.5">{new Date(tx.createdAt).toLocaleString()}</div>
                                 </div>
                                 <span className={cn("text-[10px] uppercase font-bold px-3 py-1 rounded-full", getStatusColor(tx.status))}>

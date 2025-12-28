@@ -29,6 +29,8 @@ export interface Transaction {
   deliveryState?: string; // For ecommerce orders
   createdAt: string;
   deliveryData?: any;
+  product?: Product;
+  dataPlan?: DataPlan;
 }
 
 export interface PaymentInitResponse {

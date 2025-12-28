@@ -241,7 +241,7 @@ export const Store: React.FC = () => {
                         tx_ref: paymentDetails.tx_ref,
                         amount: selectedProduct.price,
                         date: new Date().toLocaleString(),
-                        type: 'Store Purchase',
+                        type: 'Devices',
                         description: selectedProduct.name,
                         status: 'paid',
                         customerName: formData.name,
