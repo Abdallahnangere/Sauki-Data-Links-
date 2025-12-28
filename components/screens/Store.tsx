@@ -9,6 +9,7 @@ import { Input } from '../ui/Input';
 import { Loader2, CheckCircle2, Copy, Download, RefreshCw, ShoppingBag } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { SharedReceipt } from '../SharedReceipt';
+import { toast } from '../../lib/toast';
 
 // Module-level cache for instant tab switching
 let cachedProducts: Product[] | null = null;
@@ -47,6 +48,7 @@ export const Store: React.FC = () => {
             setStep('success');
             setIsPolling(false);
             clearInterval(interval);
+            toast.success("Payment confirmed!");
           }
         } catch (e) {
           // Silent fail on polling error
@@ -72,10 +74,28 @@ export const Store: React.FC = () => {
       setStep('payment');
     } catch (e) {
       console.error(e);
-      alert("Error creating order");
+      toast.error("Error creating order");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleManualCheck = async () => {
+      if (!paymentDetails) return;
+      setIsLoading(true);
+      try {
+          const res = await api.verifyTransaction(paymentDetails.tx_ref);
+          if (res.status === 'paid' || res.status === 'delivered') {
+              setStep('success');
+              toast.success("Payment confirmed!");
+          } else {
+              toast.info("Payment not received yet.");
+          }
+      } catch (e) {
+          toast.error("Verification failed.");
+      } finally {
+          setIsLoading(false);
+      }
   };
 
   const downloadReceipt = async () => {
@@ -86,8 +106,10 @@ export const Store: React.FC = () => {
         link.download = `SAUKI-STORE-${paymentDetails?.tx_ref}.png`;
         link.href = dataUrl;
         link.click();
+        toast.success("Receipt downloaded");
     } catch (err) {
         console.error('Could not generate receipt', err);
+        toast.error("Failed to generate receipt");
     }
   };
 
@@ -178,7 +200,10 @@ export const Store: React.FC = () => {
                              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Account Number</p>
                              <p className="font-mono text-2xl font-bold tracking-wider text-slate-900">{paymentDetails.account_number}</p>
                          </div>
-                         <Button variant="ghost" className="w-12 h-12 p-0 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full" onClick={() => navigator.clipboard.writeText(paymentDetails.account_number)}>
+                         <Button variant="ghost" className="w-12 h-12 p-0 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full" onClick={() => {
+                             navigator.clipboard.writeText(paymentDetails.account_number);
+                             toast.success("Account number copied");
+                         }}>
                              <Copy className="w-5 h-5" />
                          </Button>
                      </div>
@@ -188,14 +213,19 @@ export const Store: React.FC = () => {
                      </div>
                  </div>
 
-                 <div className="bg-slate-50 p-4 rounded-xl text-center">
-                    <div className="flex items-center justify-center gap-2 text-slate-600 mb-2">
-                         <Loader2 className="w-4 h-4 animate-spin" />
-                         <span className="text-sm font-medium">Waiting for payment...</span>
+                 <div className="space-y-2">
+                    <Button onClick={handleManualCheck} isLoading={isLoading} className="bg-green-600 hover:bg-green-700 h-14 text-white text-lg font-bold shadow-lg shadow-green-100">
+                        I Have Made the Transfer
+                    </Button>
+                    <div className="bg-slate-50 p-4 rounded-xl text-center">
+                        <div className="flex items-center justify-center gap-2 text-slate-600 mb-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span className="text-sm font-medium">Waiting for payment...</span>
+                        </div>
+                        <p className="text-xs text-slate-400">We will auto-confirm instantly.</p>
                     </div>
-                    <p className="text-xs text-slate-400">We will auto-confirm instantly.</p>
                  </div>
-
+                 
                  <Button onClick={() => setStep('success')} variant="outline" className="w-full h-12 text-slate-400 text-xs">
                      Simulate Success (Dev Only)
                  </Button>

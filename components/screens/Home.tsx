@@ -108,33 +108,23 @@ export const Home: React.FC<HomeProps> = ({ onNavigate }) => {
               </div>
               
               <div className="grid gap-3">
-                  <a href="tel:+2349024099561" className="flex items-center p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-100">
+                  <a href="https://wa.me/2349024099561" target="_blank" rel="noreferrer" className="flex items-center p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-100">
                       <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-4">
-                          <Phone className="w-5 h-5" />
-                      </div>
-                      <div>
-                          <p className="text-xs text-slate-500">Support Line 1</p>
-                          <p className="font-semibold text-slate-900">09024099561</p>
-                      </div>
-                  </a>
-
-                  <a href="tel:+2349076872520" className="flex items-center p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-100">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-4">
-                          <Phone className="w-5 h-5" />
-                      </div>
-                      <div>
-                          <p className="text-xs text-slate-500">Support Line 2</p>
-                          <p className="font-semibold text-slate-900">09076872520</p>
-                      </div>
-                  </a>
-
-                  <a href="https://wa.me/2349024099561" target="_blank" rel="noreferrer" className="flex items-center p-4 rounded-xl bg-green-50 hover:bg-green-100 transition-colors border border-green-100">
-                      <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center text-green-700 mr-4">
                           <MessageCircle className="w-5 h-5" />
                       </div>
                       <div>
-                          <p className="text-xs text-green-700">Chat with us</p>
-                          <p className="font-semibold text-green-800">WhatsApp Support</p>
+                          <p className="text-xs text-slate-500">WhatsApp Line 1</p>
+                          <p className="font-semibold text-slate-900">Chat 09024099561</p>
+                      </div>
+                  </a>
+
+                  <a href="https://wa.me/2349076872520" target="_blank" rel="noreferrer" className="flex items-center p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-100">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-4">
+                          <MessageCircle className="w-5 h-5" />
+                      </div>
+                      <div>
+                          <p className="text-xs text-slate-500">WhatsApp Line 2</p>
+                          <p className="font-semibold text-slate-900">Chat 09076872520</p>
                       </div>
                   </a>
 

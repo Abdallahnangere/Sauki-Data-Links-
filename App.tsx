@@ -4,6 +4,7 @@ import { Store } from './components/screens/Store';
 import { Data } from './components/screens/Data';
 import { Track } from './components/screens/Track';
 import { BottomTabs } from './components/BottomTabs';
+import { ToastContainer } from './components/ui/Toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const App: React.FC = () => {
@@ -21,6 +22,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-slate-200">
+      <ToastContainer />
       <AnimatePresence mode="wait">
         <motion.main
           key={activeTab}

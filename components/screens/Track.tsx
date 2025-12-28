@@ -7,6 +7,7 @@ import { cn, formatCurrency } from '../../lib/utils';
 import { Search, Download, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { SharedReceipt } from '../SharedReceipt';
+import { toast } from '../../lib/toast';
 
 export const Track: React.FC = () => {
   const [phone, setPhone] = useState('');
@@ -41,14 +42,14 @@ export const Track: React.FC = () => {
           await handleTrack();
           
           if (res.status === 'delivered') {
-              alert("Success! Data delivered.");
+              toast.success("Success! Data delivered.");
           } else if (res.status === 'paid') {
-              alert("Payment confirmed, delivery pending.");
+              toast.info("Payment confirmed, delivery pending.");
           } else {
-              alert("Status: " + res.status);
+              toast.error("Status: " + res.status);
           }
       } catch (e) {
-          alert("Retry failed. Check network.");
+          toast.error("Retry failed. Check network.");
       } finally {
           setRetryingId(null);
       }
@@ -65,8 +66,10 @@ export const Track: React.FC = () => {
                   link.download = `SAUKI-RECEIPT-${tx.tx_ref}.png`;
                   link.href = dataUrl;
                   link.click();
+                  toast.success("Receipt downloaded");
               } catch (err) {
                   console.error('Receipt error', err);
+                  toast.error("Failed to generate receipt");
               }
               setReceiptTx(null);
           }

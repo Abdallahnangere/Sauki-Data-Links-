@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { cn, formatCurrency } from '../../lib/utils';
-import { Loader2, Upload, Lock, Trash2, Edit2, Send, Download, Search, Package, Wifi, LayoutDashboard, LogOut } from 'lucide-react';
+import { Loader2, Upload, Lock, Trash2, Edit2, Send, Download, Search, Package, Wifi, LayoutDashboard, LogOut, AlertTriangle } from 'lucide-react';
 import { DataPlan, Product, Transaction } from '../../types';
 import { SharedReceipt } from '../../components/SharedReceipt';
 import { toPng } from 'html-to-image';
@@ -110,6 +110,27 @@ export default function AdminPage() {
           fetchData();
       } else {
           alert("Failed: " + JSON.stringify(data));
+      }
+  };
+
+  const handleClearHistory = async () => {
+      if (!confirm("⚠️ WARNING: This will permanently delete ALL transaction history. Tracking will be empty. Are you sure?")) return;
+      
+      const pass = prompt("Confirm Admin Password to Delete:");
+      if (!pass) return;
+
+      setLoading(true);
+      const res = await fetch('/api/admin/transactions/clear', { 
+          method: 'POST', 
+          body: JSON.stringify({ password: pass }) 
+      });
+      
+      setLoading(false);
+      if (res.ok) {
+          alert("History Wiped.");
+          fetchData();
+      } else {
+          alert("Failed to wipe history. Check password.");
       }
   };
 
@@ -241,8 +262,9 @@ export default function AdminPage() {
 
             {view === 'transactions' && (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="p-6 border-b border-slate-100">
+                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                          <h3 className="font-bold text-lg">All Transactions</h3>
+                         <button onClick={handleClearHistory} className="text-xs font-bold bg-red-50 text-red-600 px-3 py-2 rounded-lg border border-red-100 flex items-center gap-1 hover:bg-red-100"><Trash2 className="w-3 h-3" /> Clear History</button>
                     </div>
                      <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">

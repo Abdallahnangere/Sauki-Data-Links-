@@ -51,7 +51,6 @@ export async function POST(req: Request) {
         const transaction = await prisma.transaction.create({
             data: {
                 tx_ref,
-                idempotencyKey: tx_ref,
                 type: 'data',
                 status: amigoRes.data.success || amigoRes.data.status === 'delivered' ? 'delivered' : 'failed',
                 phone,

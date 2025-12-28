@@ -6,9 +6,10 @@ import { formatCurrency, NETWORK_BG_COLORS, cn } from '../../lib/utils';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { CheckCircle2, Copy, Download, RefreshCw, Loader2, Wifi } from 'lucide-react';
+import { CheckCircle2, Copy, Download, RefreshCw, Loader2, Wifi, ArrowRight } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { SharedReceipt } from '../SharedReceipt';
+import { toast } from '../../lib/toast';
 
 let cachedPlans: DataPlan[] | null = null;
 
@@ -44,8 +45,9 @@ export const Data: React.FC = () => {
             setStep('success');
             setIsPolling(false);
             clearInterval(interval);
+            toast.success("Payment received! Data sent.");
           } else if (res.status === 'paid') {
-              // Paid but waiting for delivery (Amigo processing)
+            // Paid but waiting for delivery (Amigo processing)
           }
         } catch (e) { }
       }, 3000); 
@@ -75,10 +77,30 @@ export const Data: React.FC = () => {
         setPaymentDetails(res);
         setStep('payment');
     } catch(e) {
-        alert("Connection error. Try again.");
+        toast.error("Connection error. Try again.");
     } finally {
         setIsLoading(false);
     }
+  };
+
+  const handleManualCheck = async () => {
+      if (!paymentDetails) return;
+      setIsLoading(true);
+      try {
+          const res = await api.verifyTransaction(paymentDetails.tx_ref);
+          if (res.status === 'delivered') {
+              setStep('success');
+              toast.success("Confirmed! Data delivered.");
+          } else if (res.status === 'paid') {
+              toast.info("Payment confirmed. Delivery processing...");
+          } else {
+              toast.info("Payment not yet received. Please wait.");
+          }
+      } catch (e) {
+          toast.error("Could not verify status.");
+      } finally {
+          setIsLoading(false);
+      }
   };
 
   const downloadReceipt = async () => {
@@ -89,8 +111,10 @@ export const Data: React.FC = () => {
         link.download = `SAUKI-DATA-${paymentDetails?.tx_ref}.png`;
         link.href = dataUrl;
         link.click();
+        toast.success("Receipt downloaded");
     } catch (err) {
         console.error('Could not generate receipt', err);
+        toast.error("Failed to generate receipt");
     }
   };
 
@@ -206,7 +230,10 @@ export const Data: React.FC = () => {
                              <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Account Number</p>
                              <p className="font-mono text-2xl font-bold tracking-wider text-slate-900">{paymentDetails.account_number}</p>
                          </div>
-                         <Button variant="ghost" className="w-12 h-12 p-0 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full" onClick={() => navigator.clipboard.writeText(paymentDetails.account_number)}>
+                         <Button variant="ghost" className="w-12 h-12 p-0 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full" onClick={() => {
+                             navigator.clipboard.writeText(paymentDetails.account_number);
+                             toast.success("Account number copied!");
+                         }}>
                              <Copy className="w-5 h-5" />
                          </Button>
                      </div>
@@ -216,12 +243,18 @@ export const Data: React.FC = () => {
                      </div>
                  </div>
 
-                 <div className="bg-slate-50 p-4 rounded-xl text-center">
-                    <div className="flex items-center justify-center gap-2 text-slate-600 mb-2">
-                         <Loader2 className="w-4 h-4 animate-spin" />
-                         <span className="text-sm font-medium">Auto-confirming payment...</span>
+                 <div className="space-y-2">
+                    <Button onClick={handleManualCheck} isLoading={isLoading} className="bg-green-600 hover:bg-green-700 h-14 text-white text-lg font-bold shadow-lg shadow-green-100">
+                        I Have Made the Transfer
+                    </Button>
+                    
+                    <div className="bg-slate-50 p-4 rounded-xl text-center">
+                        <div className="flex items-center justify-center gap-2 text-slate-600 mb-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span className="text-sm font-medium">Auto-confirming payment...</span>
+                        </div>
+                        <p className="text-xs text-slate-400">Data will be delivered immediately after confirmation.</p>
                     </div>
-                    <p className="text-xs text-slate-400">Data will be delivered immediately after confirmation.</p>
                  </div>
                </div>
            )}
