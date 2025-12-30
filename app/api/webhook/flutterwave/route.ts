@@ -1,13 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
-import axios from 'axios';
-
-const AMIGO_NETWORKS: Record<string, number> = {
-  'MTN': 1,
-  'GLO': 2,
-  'AIRTEL': 3,
-  '9MOBILE': 4
-};
+import { callAmigoAPI, AMIGO_NETWORKS } from '../../../../lib/amigo';
 
 export async function POST(req: Request) {
   // 1. Verify Signature
@@ -53,42 +46,27 @@ export async function POST(req: Request) {
              if (plan) {
                  const networkId = AMIGO_NETWORKS[plan.network];
                  
-                 try {
-                    const amigoPayload = {
-                        network: networkId,
-                        mobile_number: transaction.phone,
-                        plan: Number(plan.planId),
-                        Ported_number: true
-                    };
+                 const amigoPayload = {
+                     network: networkId,
+                     mobile_number: transaction.phone,
+                     plan: Number(plan.planId),
+                     Ported_number: true
+                 };
 
-                    const baseUrl = process.env.AMIGO_BASE_URL?.replace(/\/$/, '') || '';
-
-                    const amigoRes = await axios.post(
-                        `${baseUrl}/data/`,
-                        amigoPayload,
-                        {
-                            headers: {
-                                'X-API-Key': process.env.AMIGO_API_KEY,
-                                'Content-Type': 'application/json',
-                                'Idempotency-Key': reference // Ensure we don't double charge on retry
-                            }
-                        }
-                    );
-                    
-                    if (amigoRes.data.success === true || amigoRes.data.status === 'delivered') {
-                        await prisma.transaction.update({
-                            where: { id: transaction.id },
-                            data: { 
-                                status: 'delivered', 
-                                deliveryData: amigoRes.data 
-                            }
-                        });
-                        console.log(`Webhook: Data delivered for ${reference}`);
-                    } else {
-                        console.error(`Webhook: Amigo failed for ${reference}`, amigoRes.data);
-                    }
-                 } catch (e: any) {
-                     console.error("Webhook: Amigo API Error", e?.response?.data || e.message);
+                 // Call Amigo through AWS Tunnel
+                 const amigoRes = await callAmigoAPI('/data/', amigoPayload, reference);
+                 
+                 if (amigoRes.success && (amigoRes.data.success === true || amigoRes.data.status === 'delivered')) {
+                     await prisma.transaction.update({
+                         where: { id: transaction.id },
+                         data: { 
+                             status: 'delivered', 
+                             deliveryData: amigoRes.data 
+                         }
+                     });
+                     console.log(`Webhook: Data delivered for ${reference}`);
+                 } else {
+                     console.error(`Webhook: Amigo failed for ${reference}`, amigoRes.data);
                  }
              }
         }

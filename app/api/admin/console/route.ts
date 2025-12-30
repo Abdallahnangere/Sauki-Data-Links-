@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import axios from 'axios';
+import { callAmigoAPI } from '../../../../lib/amigo';
 
 export async function POST(req: Request) {
     try {
@@ -10,59 +10,29 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const baseUrl = process.env.AMIGO_BASE_URL?.replace(/\/$/, '') || '';
-        const targetUrl = `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+        // Generate a test idempotency key
+        const idempotencyKey = `CONSOLE-${Date.now()}`;
+        
+        console.log(`[Console] Proxying to endpoint: ${endpoint}`);
 
-        console.log(`Console Proxying to: ${targetUrl}`);
+        // Use the centralized tunnel client
+        const result = await callAmigoAPI(endpoint, payload, idempotencyKey);
 
-        const response = await axios.post(targetUrl, payload, {
-            headers: {
-                'X-API-Key': process.env.AMIGO_API_KEY,
-                'Content-Type': 'application/json',
-                // Add a random idempotency key for console tests to allow re-sends
-                'Idempotency-Key': `CONSOLE-${Date.now()}` 
-            }
-        });
+        // Return the exact response from the tunnel/Amigo
+        if (!result.success) {
+            return NextResponse.json(result.data, { status: result.status });
+        }
 
-        return NextResponse.json(response.data);
+        return NextResponse.json(result.data);
 
     } catch (e: any) {
         return NextResponse.json(
-            e.response?.data || { error: e.message }, 
-            { status: e.response?.status || 500 }
+            { error: e.message }, 
+            { status: 500 }
         );
     }
 }
 
 export async function GET(req: Request) {
-    // Handling GET requests (e.g. for efficiency/balance checks)
-    try {
-        const { searchParams } = new URL(req.url);
-        const endpoint = searchParams.get('endpoint');
-        const password = searchParams.get('password');
-
-        if (password !== process.env.ADMIN_PASSWORD) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        
-        if (!endpoint) return NextResponse.json({ error: 'Endpoint required' }, { status: 400 });
-
-        const baseUrl = process.env.AMIGO_BASE_URL?.replace(/\/$/, '') || '';
-        const targetUrl = `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
-
-        const response = await axios.get(targetUrl, {
-            headers: {
-                'X-API-Key': process.env.AMIGO_API_KEY,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        return NextResponse.json(response.data);
-
-    } catch (e: any) {
-        return NextResponse.json(
-            e.response?.data || { error: e.message }, 
-            { status: e.response?.status || 500 }
-        );
-    }
+    return NextResponse.json({ error: 'Console GET not supported via Tunnel Client yet. Use POST.' }, { status: 400 });
 }

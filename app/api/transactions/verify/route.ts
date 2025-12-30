@@ -1,14 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 import axios from 'axios';
-
-// Amigo Network Mapping
-const AMIGO_NETWORKS: Record<string, number> = {
-  'MTN': 1,
-  'GLO': 2,
-  'AIRTEL': 3,
-  '9MOBILE': 4
-};
+import { callAmigoAPI, AMIGO_NETWORKS } from '../../../../lib/amigo';
 
 export async function POST(req: Request) {
   try {
@@ -42,11 +35,12 @@ export async function POST(req: Request) {
             }
         } catch (error) {
             console.error('FLW Verify Error:', error);
+            // Don't fail, just return pending state so client retries
             return NextResponse.json({ status: 'pending' }); 
         }
     }
 
-    // 4. If Status is PAID, Attempt Amigo Delivery
+    // 4. If Status is PAID, Attempt Amigo Delivery via AWS Tunnel
     if (currentStatus === 'paid' && transaction.type === 'data') {
         if (!transaction.deliveryData) {
             const plan = await prisma.dataPlan.findUnique({ where: { id: transaction.planId! } });
@@ -54,45 +48,27 @@ export async function POST(req: Request) {
             if (plan) {
                 const networkId = AMIGO_NETWORKS[plan.network];
 
-                try {
-                    console.log(`Attempting Amigo Delivery for ${tx_ref}`);
-                    
-                    const amigoPayload = {
-                        network: networkId,
-                        mobile_number: transaction.phone,
-                        plan: Number(plan.planId), // Ensure integer
-                        Ported_number: true
-                    };
+                const amigoPayload = {
+                    network: networkId,
+                    mobile_number: transaction.phone,
+                    plan: Number(plan.planId),
+                    Ported_number: true
+                };
 
-                    const baseUrl = process.env.AMIGO_BASE_URL?.replace(/\/$/, '') || ''; // Remove trailing slash if present
+                // Call Amigo through the Tunnel
+                const amigoRes = await callAmigoAPI('/data/', amigoPayload, tx_ref);
 
-                    const amigoRes = await axios.post(
-                        `${baseUrl}/data/`,
-                        amigoPayload,
-                        {
-                            headers: {
-                                'X-API-Key': process.env.AMIGO_API_KEY,
-                                'Content-Type': 'application/json',
-                                'Idempotency-Key': tx_ref // Use tx_ref for safe retries
-                            }
+                if (amigoRes.success && (amigoRes.data.success === true || amigoRes.data.status === 'delivered')) {
+                    await prisma.transaction.update({
+                        where: { id: transaction.id },
+                        data: {
+                            status: 'delivered',
+                            deliveryData: amigoRes.data
                         }
-                    );
-
-                    // Check Amigo response
-                    if (amigoRes.data.success === true || amigoRes.data.status === 'delivered') {
-                        await prisma.transaction.update({
-                            where: { id: transaction.id },
-                            data: {
-                                status: 'delivered',
-                                deliveryData: amigoRes.data
-                            }
-                        });
-                        currentStatus = 'delivered';
-                    } else {
-                        console.error('Amigo Delivery Failed:', amigoRes.data);
-                    }
-                } catch (amigoError: any) {
-                    console.error('Amigo API Network Error:', amigoError?.response?.data || amigoError.message);
+                    });
+                    currentStatus = 'delivered';
+                } else {
+                    console.error('Amigo Delivery Failed via AWS:', amigoRes.data);
                 }
             }
         }

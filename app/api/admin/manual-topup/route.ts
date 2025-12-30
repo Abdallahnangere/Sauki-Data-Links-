@@ -1,15 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
-import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
-
-// Amigo Network Mapping
-const AMIGO_NETWORKS: Record<string, number> = {
-  'MTN': 1,
-  'GLO': 2,
-  'AIRTEL': 3,
-  '9MOBILE': 4
-};
+import { callAmigoAPI, AMIGO_NETWORKS } from '../../../../lib/amigo';
 
 export async function POST(req: Request) {
     try {
@@ -27,7 +19,6 @@ export async function POST(req: Request) {
         const networkId = AMIGO_NETWORKS[plan.network];
         const idempotencyKey = `MANUAL-${uuidv4()}`;
         
-        // Call Amigo Directly
         const amigoPayload = {
             network: networkId,
             mobile_number: phone,
@@ -35,19 +26,8 @@ export async function POST(req: Request) {
             Ported_number: true
         };
 
-        const baseUrl = process.env.AMIGO_BASE_URL?.replace(/\/$/, '') || '';
-
-        const amigoRes = await axios.post(
-            `${baseUrl}/data/`,
-            amigoPayload,
-            {
-                headers: {
-                    'X-API-Key': process.env.AMIGO_API_KEY,
-                    'Content-Type': 'application/json',
-                    'Idempotency-Key': idempotencyKey
-                }
-            }
-        );
+        // Call Amigo through AWS Tunnel
+        const amigoRes = await callAmigoAPI('/data/', amigoPayload, idempotencyKey);
 
         const tx_ref = idempotencyKey;
         
@@ -55,9 +35,8 @@ export async function POST(req: Request) {
         const transaction = await prisma.transaction.create({
             data: {
                 tx_ref,
-                idempotencyKey: tx_ref,
                 type: 'data',
-                status: amigoRes.data.success || amigoRes.data.status === 'delivered' ? 'delivered' : 'failed',
+                status: (amigoRes.success && (amigoRes.data.success || amigoRes.data.status === 'delivered')) ? 'delivered' : 'failed',
                 phone,
                 amount: 0, // Admin override
                 planId: plan.id,
@@ -67,7 +46,7 @@ export async function POST(req: Request) {
         });
 
         if (transaction.status === 'failed') {
-            return NextResponse.json({ error: 'Amigo API Failed', details: amigoRes.data }, { status: 400 });
+            return NextResponse.json({ error: 'Amigo API Failed via Tunnel', details: amigoRes.data }, { status: 400 });
         }
 
         return NextResponse.json({ success: true, transaction });
