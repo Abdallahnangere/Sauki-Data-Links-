@@ -15,6 +15,7 @@ model Product {
   image       String
   inStock     Boolean  @default(true)
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt       // Added this to fix mismatch
   transactions Transaction[]
 }
 
@@ -26,6 +27,7 @@ model DataPlan {
   price     Float
   planId    Int      // The ID used by Amigo API
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt       // Added this to fix mismatch
   transactions Transaction[]
 }
 
@@ -46,8 +48,8 @@ model Transaction {
   deliveryState  String?
   
   // System data
-  paymentData    Json?    // Full Flutterwave response
-  deliveryData   Json?    // Full Amigo response
+  paymentData    Json?    // Maps to JSONB in Postgres
+  deliveryData   Json?    // Maps to JSONB in Postgres
   idempotencyKey String?  @unique
   
   createdAt      DateTime @default(now())
