@@ -1,1 +1,64 @@
-���Ȭʋ�
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  price       Float
+  image       String
+  inStock     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  transactions Transaction[]
+}
+
+model DataPlan {
+  id        String   @id @default(uuid())
+  network   String   // MTN, AIRTEL, GLO
+  data      String   // e.g. 1GB
+  validity  String   // e.g. 30 Days
+  price     Float
+  planId    Int      // The ID used by Amigo API
+  createdAt DateTime @default(now())
+  transactions Transaction[]
+}
+
+model Transaction {
+  id             String   @id @default(uuid())
+  tx_ref         String   @unique
+  type           String   // 'ecommerce', 'data', 'console_data'
+  status         String   // 'pending', 'paid', 'delivered', 'failed'
+  phone          String
+  amount         Float
+  
+  // Relations
+  planId         String?
+  productId      String?
+  
+  // E-commerce specifics
+  customerName   String?
+  deliveryState  String?
+  
+  // System data
+  paymentData    Json?    // Full Flutterwave response
+  deliveryData   Json?    // Full Amigo response
+  idempotencyKey String?  @unique
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  product        Product?  @relation(fields: [productId], references: [id])
+  dataPlan       DataPlan? @relation(fields: [planId], references: [id])
+}
+
+model SystemSettings {
+  id           String  @id @default("settings")
+  announcement String?
+  isActive     Boolean @default(false)
+}
