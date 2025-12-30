@@ -25,33 +25,36 @@ export async function POST(req: Request) {
         if (!plan) return NextResponse.json({ error: 'Plan not found' }, { status: 404 });
 
         const networkId = AMIGO_NETWORKS[plan.network];
+        const idempotencyKey = `MANUAL-${uuidv4()}`;
         
         // Call Amigo Directly
         const amigoPayload = {
             network: networkId,
             mobile_number: phone,
-            plan: plan.planId,
+            plan: Number(plan.planId),
             Ported_number: true
         };
 
+        const baseUrl = process.env.AMIGO_BASE_URL?.replace(/\/$/, '') || '';
+
         const amigoRes = await axios.post(
-            `${process.env.AMIGO_BASE_URL}/data/`,
+            `${baseUrl}/data/`,
             amigoPayload,
             {
                 headers: {
                     'X-API-Key': process.env.AMIGO_API_KEY,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': idempotencyKey
                 }
             }
         );
 
-        const tx_ref = `ADMIN-MANUAL-${uuidv4().slice(0,8)}`;
+        const tx_ref = idempotencyKey;
         
         // Log transaction as Delivered (Manual)
         const transaction = await prisma.transaction.create({
             data: {
                 tx_ref,
-                idempotencyKey: tx_ref,
                 type: 'data',
                 status: amigoRes.data.success || amigoRes.data.status === 'delivered' ? 'delivered' : 'failed',
                 phone,

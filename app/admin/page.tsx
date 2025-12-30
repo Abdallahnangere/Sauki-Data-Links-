@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { cn, formatCurrency } from '../../lib/utils';
-import { Loader2, Upload, Lock, Trash2, Edit2, Send, Download, Search, Package, Wifi, LayoutDashboard, LogOut, AlertTriangle } from 'lucide-react';
+import { Loader2, Upload, Lock, Trash2, Edit2, Send, Download, Search, Package, Wifi, LayoutDashboard, LogOut, Terminal, Play, RotateCcw } from 'lucide-react';
 import { DataPlan, Product, Transaction } from '../../types';
 import { SharedReceipt } from '../../components/SharedReceipt';
 import { toPng } from 'html-to-image';
@@ -10,7 +10,7 @@ import { toPng } from 'html-to-image';
 export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'products' | 'plans' | 'orders' | 'transactions' | 'manual'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'products' | 'plans' | 'orders' | 'transactions' | 'manual' | 'console'>('dashboard');
   const [loading, setLoading] = useState(false);
   
   // Data
@@ -24,13 +24,25 @@ export default function AdminPage() {
   const [manualForm, setManualForm] = useState({ phone: '', planId: '' });
   const [editMode, setEditMode] = useState(false);
   
+  // Console State
+  const [consoleEndpoint, setConsoleEndpoint] = useState('/data/');
+  const [consolePayload, setConsolePayload] = useState('{\n  "network": 1,\n  "mobile_number": "09000000000",\n  "plan": 1001,\n  "Ported_number": true\n}');
+  const [consoleHistory, setConsoleHistory] = useState<Array<{ type: 'req' | 'res', data: any, time: string }>>([]);
+  const consoleEndRef = useRef<HTMLDivElement>(null);
+
   // Receipt
   const receiptRef = useRef<HTMLDivElement>(null);
   const [receiptTx, setReceiptTx] = useState<Transaction | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated) fetchData();
+    if (isAuthenticated && view !== 'console') fetchData();
   }, [isAuthenticated, view]);
+
+  useEffect(() => {
+    if (view === 'console') {
+        consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [consoleHistory, view]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -165,6 +177,34 @@ export default function AdminPage() {
       return 'Item Order';
   };
 
+  // Console Functions
+  const sendConsoleRequest = async () => {
+      let parsedPayload;
+      try {
+          parsedPayload = JSON.parse(consolePayload);
+      } catch (e) {
+          alert("Invalid JSON Format");
+          return;
+      }
+
+      const timestamp = new Date().toLocaleTimeString();
+      setConsoleHistory(prev => [...prev, { type: 'req', data: { endpoint: consoleEndpoint, payload: parsedPayload }, time: timestamp }]);
+      setLoading(true);
+
+      try {
+          const res = await fetch('/api/admin/console', {
+              method: 'POST',
+              body: JSON.stringify({ endpoint: consoleEndpoint, payload: parsedPayload, password })
+          });
+          const data = await res.json();
+          setConsoleHistory(prev => [...prev, { type: 'res', data: data, time: new Date().toLocaleTimeString() }]);
+      } catch (e: any) {
+          setConsoleHistory(prev => [...prev, { type: 'res', data: { error: e.message }, time: new Date().toLocaleTimeString() }]);
+      } finally {
+          setLoading(false);
+      }
+  };
+
   if (!isAuthenticated) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100">
         <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center border border-slate-200">
@@ -193,6 +233,7 @@ export default function AdminPage() {
                     { id: 'products', label: 'Manage Products', icon: Package },
                     { id: 'plans', label: 'Manage Plans', icon: Wifi },
                     { id: 'manual', label: 'Manual Topup', icon: Send },
+                    { id: 'console', label: 'Amigo Console', icon: Terminal },
                 ].map(item => (
                     <button key={item.id} onClick={() => setView(item.id as any)} className={cn("flex items-center gap-3 w-full p-3 rounded-lg text-sm font-medium transition-colors", view === item.id ? "bg-blue-600 text-white shadow-lg" : "text-slate-400 hover:bg-slate-800 hover:text-white")}>
                         <item.icon className="w-4 h-4" /> {item.label}
@@ -247,6 +288,58 @@ export default function AdminPage() {
                         <div className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Pending Orders</div>
                         <div className="text-3xl font-black text-orange-600">{transactions.filter(t => t.type === 'ecommerce' && t.status === 'paid').length}</div>
                     </div>
+                </div>
+            )}
+
+            {view === 'console' && (
+                <div className="flex flex-col lg:flex-row gap-6 h-[70vh]">
+                     {/* Chat Area (Left/Top) */}
+                     <div className="flex-1 bg-slate-900 rounded-2xl shadow-xl flex flex-col overflow-hidden border border-slate-800">
+                         <div className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center">
+                             <div className="flex items-center gap-2">
+                                 <Terminal className="w-4 h-4 text-green-400" />
+                                 <span className="text-white font-mono text-sm">Amigo API Link</span>
+                             </div>
+                             <button onClick={() => setConsoleHistory([])} className="text-xs text-slate-400 hover:text-white flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Clear</button>
+                         </div>
+                         <div className="flex-1 p-4 overflow-y-auto space-y-4 font-mono text-sm">
+                             {consoleHistory.length === 0 && (
+                                 <div className="text-slate-600 text-center mt-20 italic">No interaction yet. Send a payload.</div>
+                             )}
+                             {consoleHistory.map((item, i) => (
+                                 <div key={i} className={cn("flex flex-col max-w-[90%]", item.type === 'req' ? 'self-end items-end' : 'self-start items-start')}>
+                                     <div className={cn("px-4 py-3 rounded-2xl mb-1 border shadow-sm whitespace-pre-wrap break-all", item.type === 'req' ? 'bg-blue-600 text-white border-blue-500 rounded-tr-none' : 'bg-slate-800 text-green-400 border-slate-700 rounded-tl-none')}>
+                                         {JSON.stringify(item.data, null, 2)}
+                                     </div>
+                                     <span className="text-[10px] text-slate-500 px-1">{item.time} • {item.type === 'req' ? 'Sent' : 'Received'}</span>
+                                 </div>
+                             ))}
+                             <div ref={consoleEndRef} />
+                         </div>
+                     </div>
+
+                     {/* Input Area (Right/Bottom) */}
+                     <div className="w-full lg:w-96 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col p-4">
+                         <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">Payload Builder</h3>
+                         
+                         <div className="mb-4">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Endpoint</label>
+                             <input className="w-full border p-2 rounded-lg font-mono text-sm bg-slate-50" value={consoleEndpoint} onChange={e => setConsoleEndpoint(e.target.value)} />
+                         </div>
+
+                         <div className="flex-1 mb-4 flex flex-col">
+                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">JSON Body</label>
+                             <textarea 
+                                className="w-full flex-1 border p-3 rounded-lg font-mono text-sm bg-slate-900 text-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none leading-relaxed" 
+                                value={consolePayload}
+                                onChange={e => setConsolePayload(e.target.value)}
+                             />
+                         </div>
+
+                         <button onClick={sendConsoleRequest} disabled={loading} className="w-full bg-slate-900 text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition">
+                             {loading ? <Loader2 className="animate-spin" /> : <><Play className="w-4 h-4 fill-current" /> Send Request</>}
+                         </button>
+                     </div>
                 </div>
             )}
 

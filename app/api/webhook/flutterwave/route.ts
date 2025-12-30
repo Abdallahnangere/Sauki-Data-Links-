@@ -20,10 +20,8 @@ export async function POST(req: Request) {
 
   // 2. Parse Body
   const body = await req.json();
-  // Flutterwave webhook payload structure varies slightly by event, but usually data is inside `data`
   const payload = body.data || body; 
   const { txRef, status } = payload; 
-  // Note: Flutterwave often sends `txRef` or `tx_ref`. Check strictly.
   const reference = txRef || payload.tx_ref;
 
   // 3. Strict Success Check
@@ -36,7 +34,6 @@ export async function POST(req: Request) {
     const transaction = await prisma.transaction.findUnique({ where: { tx_ref: reference } });
     
     if (!transaction) {
-        // Transaction not found? Log it.
         console.log(`Webhook: Transaction ${reference} not found.`);
         return NextResponse.json({ error: 'Tx not found' }, { status: 404 });
     }
@@ -60,17 +57,20 @@ export async function POST(req: Request) {
                     const amigoPayload = {
                         network: networkId,
                         mobile_number: transaction.phone,
-                        plan: plan.planId, // Amigo Plan ID (Integer)
+                        plan: Number(plan.planId),
                         Ported_number: true
                     };
 
+                    const baseUrl = process.env.AMIGO_BASE_URL?.replace(/\/$/, '') || '';
+
                     const amigoRes = await axios.post(
-                        `${process.env.AMIGO_BASE_URL}/data/`,
+                        `${baseUrl}/data/`,
                         amigoPayload,
                         {
                             headers: {
                                 'X-API-Key': process.env.AMIGO_API_KEY,
-                                'Content-Type': 'application/json'
+                                'Content-Type': 'application/json',
+                                'Idempotency-Key': reference // Ensure we don't double charge on retry
                             }
                         }
                     );

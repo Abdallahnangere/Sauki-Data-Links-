@@ -24,7 +24,6 @@ export async function POST(req: Request) {
     let currentStatus = transaction.status;
 
     // 3. If Pending, Verify with Flutterwave
-    // We only verify with FLW if we haven't confirmed payment yet.
     if (currentStatus === 'pending') {
         try {
             const flwVerify = await axios.get(`https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${tx_ref}`, {
@@ -43,16 +42,12 @@ export async function POST(req: Request) {
             }
         } catch (error) {
             console.error('FLW Verify Error:', error);
-            // If FLW fails (network/rate limit), we return current status (pending) and stop.
-            // We do NOT fail the transaction, just allow retry later.
             return NextResponse.json({ status: 'pending' }); 
         }
     }
 
-    // 4. If Status is PAID (from DB or just verified), Attempt Amigo Delivery
+    // 4. If Status is PAID, Attempt Amigo Delivery
     if (currentStatus === 'paid' && transaction.type === 'data') {
-        // Double check if already delivered to prevent double spend (though status check above handles most cases)
-        // We use the deliveryData field as a secondary lock
         if (!transaction.deliveryData) {
             const plan = await prisma.dataPlan.findUnique({ where: { id: transaction.planId! } });
             
@@ -65,17 +60,20 @@ export async function POST(req: Request) {
                     const amigoPayload = {
                         network: networkId,
                         mobile_number: transaction.phone,
-                        plan: plan.planId,
+                        plan: Number(plan.planId), // Ensure integer
                         Ported_number: true
                     };
 
+                    const baseUrl = process.env.AMIGO_BASE_URL?.replace(/\/$/, '') || ''; // Remove trailing slash if present
+
                     const amigoRes = await axios.post(
-                        `${process.env.AMIGO_BASE_URL}/data/`,
+                        `${baseUrl}/data/`,
                         amigoPayload,
                         {
                             headers: {
                                 'X-API-Key': process.env.AMIGO_API_KEY,
-                                'Content-Type': 'application/json'
+                                'Content-Type': 'application/json',
+                                'Idempotency-Key': tx_ref // Use tx_ref for safe retries
                             }
                         }
                     );
