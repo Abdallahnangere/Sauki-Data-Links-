@@ -19,7 +19,7 @@ export interface DataPlan {
 export interface Transaction {
   id: string;
   tx_ref: string;
-  type: 'ecommerce' | 'data';
+  type: 'ecommerce' | 'data' | 'console_data';
   status: 'pending' | 'paid' | 'delivered' | 'failed';
   phone: string;
   amount: number;
